@@ -1,0 +1,217 @@
+[
+  {
+    "name": "RandomForest",
+    "features": "Mel Spectrogram",
+    "test_accuracy": 0.5832426550598476,
+    "balanced_accuracy": 0.4222527223992784,
+    "train_accuracy": 0.8490648107872988,
+    "sensitivity": 0.4527027027027027,
+    "specificity": 0.7287319422150883,
+    "per_class": {
+      "Normal": {
+        "precision": 0.737012987012987,
+        "recall": 0.7287319422150883,
+        "f1": 0.7328490718321227
+      },
+      "Crackle": {
+        "precision": 0.3005181347150259,
+        "recall": 0.36024844720496896,
+        "f1": 0.327683615819209
+      },
+      "Wheeze": {
+        "precision": 0.21818181818181817,
+        "recall": 0.17777777777777778,
+        "f1": 0.19591836734693877
+      }
+    },
+    "confusion_matrix": [
+      [
+        454,
+        102,
+        67
+      ],
+      [
+        84,
+        58,
+        19
+      ],
+      [
+        78,
+        33,
+        24
+      ]
+    ]
+  },
+  {
+    "name": "SVM",
+    "features": "Mel Spectrogram",
+    "test_accuracy": 0.5799782372143635,
+    "balanced_accuracy": 0.4538662420766313,
+    "train_accuracy": 0.9097433666811657,
+    "sensitivity": 0.5405405405405406,
+    "specificity": 0.695024077046549,
+    "per_class": {
+      "Normal": {
+        "precision": 0.7609841827768014,
+        "recall": 0.695024077046549,
+        "f1": 0.7265100671140939
+      },
+      "Crackle": {
+        "precision": 0.29245283018867924,
+        "recall": 0.38509316770186336,
+        "f1": 0.3324396782841823
+      },
+      "Wheeze": {
+        "precision": 0.2753623188405797,
+        "recall": 0.2814814814814815,
+        "f1": 0.2783882783882784
+      }
+    },
+    "confusion_matrix": [
+      [
+        433,
+        114,
+        76
+      ],
+      [
+        75,
+        62,
+        24
+      ],
+      [
+        61,
+        36,
+        38
+      ]
+    ]
+  },
+  {
+    "name": "SmallCNN",
+    "features": "Mel Spectrogram",
+    "test_accuracy": 0.5897714907508161,
+    "balanced_accuracy": 0.38985188459215486,
+    "train_accuracy": 0.5989560484886169,
+    "sensitivity": 0.4358108108108108,
+    "specificity": 0.7672552166934189,
+    "per_class": {
+      "Normal": {
+        "precision": 0.7410852713178294,
+        "recall": 0.7672552166934189,
+        "f1": 0.7539432176656151
+      },
+      "Crackle": {
+        "precision": 0.23076923076923078,
+        "recall": 0.37267080745341613,
+        "f1": 0.2850356294536817
+      },
+      "Wheeze": {
+        "precision": 0.2857142857142857,
+        "recall": 0.02962962962962963,
+        "f1": 0.053691275167785234
+      }
+    },
+    "confusion_matrix": [
+      [
+        478,
+        145,
+        0
+      ],
+      [
+        91,
+        60,
+        10
+      ],
+      [
+        76,
+        55,
+        4
+      ]
+    ]
+  },
+  {
+    "name": "SpecAugmentCNN",
+    "features": "Mel Spectrogram",
+    "test_accuracy": 0.602829162132753,
+    "balanced_accuracy": 0.40388954800288457,
+    "train_accuracy": 0.5606785416603088,
+    "sensitivity": 0.375,
+    "specificity": 0.7768860353130016,
+    "per_class": {
+      "Normal": {
+        "precision": 0.7234678624813154,
+        "recall": 0.7768860353130016,
+        "f1": 0.7492260061919505
+      },
+      "Crackle": {
+        "precision": 0.28,
+        "recall": 0.43478260869565216,
+        "f1": 0.340632603406326
+      },
+      "Wheeze": {
+        "precision": 0.0,
+        "recall": 0.0,
+        "f1": 0.0
+      }
+    },
+    "confusion_matrix": [
+      [
+        484,
+        139,
+        0
+      ],
+      [
+        91,
+        70,
+        0
+      ],
+      [
+        94,
+        41,
+        0
+      ]
+    ]
+  },
+  {
+    "name": "GradientBoosting",
+    "features": "Mel Spectrogram",
+    "test_accuracy": 0.6082698585418934,
+    "balanced_accuracy": 0.4200027743098904,
+    "train_accuracy": 0.9862983906046107,
+    "sensitivity": 0.44932432432432434,
+    "specificity": 0.7817014446227929,
+    "per_class": {
+      "Normal": {
+        "precision": 0.7492307692307693,
+        "recall": 0.7817014446227929,
+        "f1": 0.7651217596229379
+      },
+      "Crackle": {
+        "precision": 0.26436781609195403,
+        "recall": 0.2857142857142857,
+        "f1": 0.2746268656716418
+      },
+      "Wheeze": {
+        "precision": 0.2736842105263158,
+        "recall": 0.1925925925925926,
+        "f1": 0.22608695652173913
+      }
+    },
+    "confusion_matrix": [
+      [
+        487,
+        90,
+        46
+      ],
+      [
+        92,
+        46,
+        23
+      ],
+      [
+        71,
+        38,
+        26
+      ]
+    ]
+  }
+]
