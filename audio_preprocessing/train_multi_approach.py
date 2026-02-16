@@ -1,8 +1,4 @@
 """
-=============================================================================
-AusculTek - Multi-Approach Model Comparison with Full Analysis
-=============================================================================
-
 Runs 5 approaches on the same patient-level split, generates per-approach
 confusion matrices, ROC curves, per-class recall charts, binary analysis,
 feature importance (RF/GB), CNN training curves, and a summary dashboard.

@@ -1,8 +1,4 @@
 """
-=============================================================================
-AusculTek - Final Model Training (Random Forest + MFCC)
-=============================================================================
-
 Trains the deployment model: Random Forest on 130 MFCC + spectral features.
 
 Selected over CNN approaches because:
