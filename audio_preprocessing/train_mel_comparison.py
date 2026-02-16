@@ -1,8 +1,4 @@
 """
-=============================================================================
-AusculTek - All Models on Mel Spectrogram Features
-=============================================================================
-
 Every model uses mel spectrogram-derived features exclusively.
 
   Classical ML (RF, SVM, GB):  138-dim summary vector

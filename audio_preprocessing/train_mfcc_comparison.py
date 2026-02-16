@@ -1,8 +1,4 @@
 """
-=============================================================================
-AusculTek - All Models on MFCC Features
-=============================================================================
-
 Every model uses MFCC-derived features exclusively.
 
   Classical ML (RF, SVM, GB):  130-dim summary vector
