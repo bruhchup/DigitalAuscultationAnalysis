@@ -7,12 +7,6 @@ Uses:
 - Basic balanced class weighting
 - 3-class classification
 - Standard CNN architecture
-
-Results:
-- Overall: 61.6%
-- Normal: 87.8% recall
-- Crackle: 17.6% recall
-- Wheeze: 18.2% recall
 """
 
 import numpy as np
