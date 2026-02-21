@@ -1,0 +1,17 @@
+{
+  "model_type": "sklearn",
+  "model_name": "RandomForest_MFCC",
+  "TARGET_SR": 8000,
+  "TARGET_DURATION": 3.0,
+  "TARGET_LENGTH": 24000,
+  "FILTER_LOWCUT": 50,
+  "FILTER_HIGHCUT": 2000,
+  "FILTER_ORDER": 5,
+  "N_MFCC": 20,
+  "CLASS_NAMES": [
+    "Normal",
+    "Crackle",
+    "Wheeze"
+  ],
+  "NUM_CLASSES": 3
+}

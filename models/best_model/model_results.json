@@ -1,0 +1,34 @@
+{
+  "model_name": "RandomForest_MFCC",
+  "train_accuracy": 0.9006989636056881,
+  "val_accuracy": 0.586781964175417,
+  "test_accuracy": 0.5787610619469027,
+  "balanced_accuracy": 0.4759669814661094,
+  "overfit_gap": 0.32193790165878544,
+  "per_class_recall": {
+    "Normal": 0.6745152354570637,
+    "Crackle": 0.5473251028806584,
+    "Wheeze": 0.20606060606060606
+  },
+  "binary_sensitivity": 0.5661764705882353,
+  "binary_specificity": 0.6745152354570637,
+  "binary_ppv": 0.4957081545064378,
+  "binary_npv": 0.733433734939759,
+  "confusion_matrix": [
+    [
+      487,
+      216,
+      19
+    ],
+    [
+      104,
+      133,
+      6
+    ],
+    [
+      73,
+      58,
+      34
+    ]
+  ]
+}
