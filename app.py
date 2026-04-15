@@ -4,14 +4,14 @@ AusculTek - Streamlit Web Application
 =============================================================================
 
 Web-based interface for respiratory sound classification.
-Wraps the AudioClassifier inference pipeline with an interactive dashboard.
+Wraps the inference pipeline with an interactive dashboard.
 
 Usage:
   streamlit run app.py
 
 Requires:
-  - inference.py (AudioClassifier) in the same directory
-  - models/best_model/ with model.pkl, scaler.pkl, preprocessing_config.json
+  - inference.py in audio_preprocessing/
+  - models/best_model/ or models/scl_model/ with model artifacts
   - pip install streamlit plotly librosa numpy scipy
 
 Author: Hayden Banks
@@ -32,17 +32,18 @@ from datetime import datetime
 # Import classifier
 import sys
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "audio_preprocessing"))
-from inference import AudioClassifier
+from inference import load_classifier
 
 # ---------------------------------------------------------------------------
 # Config
 # ---------------------------------------------------------------------------
 
-MODEL_DIR = os.environ.get("MODEL_DIR", "models/best_model")
+MODEL_DIR = os.environ.get("MODEL_DIR", "models/scl_model")
 CLASS_COLORS = {
     "Normal": "#0891B2",
     "Crackle": "#F97316",
     "Wheeze": "#EF4444",
+    "Both": "#8B5CF6",
 }
 
 # ---------------------------------------------------------------------------
@@ -150,10 +151,10 @@ st.markdown("""
 # ---------------------------------------------------------------------------
 
 @st.cache_resource
-def load_classifier():
+def get_classifier():
     """Load the classifier once and cache it."""
     try:
-        clf = AudioClassifier(MODEL_DIR)
+        clf = load_classifier(MODEL_DIR)
         return clf, None
     except Exception as e:
         return None, str(e)
@@ -200,7 +201,7 @@ def create_overall_gauge(label, confidence):
 
 def create_class_distribution_pie(results):
     """Create a pie chart of segment classifications."""
-    counts = {"Normal": 0, "Crackle": 0, "Wheeze": 0}
+    counts = {name: 0 for name in CLASS_COLORS}
     for c in results["cycles"]:
         if c["label"] in counts:
             counts[c["label"]] += 1
@@ -438,13 +439,13 @@ with st.sidebar:
 # ---------------------------------------------------------------------------
 
 # Load classifier
-clf, load_error = load_classifier()
+clf, load_error = get_classifier()
 
 if load_error:
     st.error(f"**Model failed to load:** {load_error}")
     st.info(
-        f"Make sure `{MODEL_DIR}/` contains `model.pkl`, `scaler.pkl`, "
-        f"and `preprocessing_config.json`."
+        f"Make sure `{MODEL_DIR}/` contains `preprocessing_config.json` and either "
+        f"`model_state.pth` (PyTorch) or `model.pkl` + `scaler.pkl` (sklearn)."
     )
     st.stop()
 
@@ -524,7 +525,8 @@ with st.spinner("Analyzing respiratory sounds..."):
     results = classify_audio(clf, tmp_path, annotation_path)
 
     # Load audio for waveform display
-    audio, sr = librosa.load(tmp_path, sr=8000)
+    target_sr = clf.cfg.get("TARGET_SR", 8000) if clf else 8000
+    audio, sr = librosa.load(tmp_path, sr=target_sr)
 
 # Clean up temp files
 os.unlink(tmp_path)
@@ -630,16 +632,16 @@ st.markdown("### Segment Details")
 table_data = []
 for i, c in enumerate(results["cycles"]):
     p = c["probabilities"]
-    table_data.append({
+    row = {
         "Segment": i + 1,
         "Start (s)": f"{c['start']:.2f}",
         "End (s)": f"{c['end']:.2f}",
         "Classification": c["label"],
         "Confidence": f"{c['confidence']:.1%}",
-        "Normal %": f"{p.get('Normal', 0):.1%}",
-        "Crackle %": f"{p.get('Crackle', 0):.1%}",
-        "Wheeze %": f"{p.get('Wheeze', 0):.1%}",
-    })
+    }
+    for name in CLASS_COLORS:
+        row[f"{name} %"] = f"{p.get(name, 0):.1%}"
+    table_data.append(row)
 
 st.dataframe(
     table_data,

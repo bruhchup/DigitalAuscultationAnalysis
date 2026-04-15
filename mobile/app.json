@@ -1,0 +1,31 @@
+{
+  "expo": {
+    "name": "AusculTek",
+    "slug": "auscultek-mobile",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "light",
+    "splash": {
+      "backgroundColor": "#0C4A6E",
+      "resizeMode": "contain"
+    },
+    "ios": {
+      "supportsTablet": true,
+      "infoPlist": {
+        "NSMicrophoneUsageDescription": "AusculTek needs microphone access to record lung sounds for analysis."
+      }
+    },
+    "android": {
+      "adaptiveIcon": {
+        "backgroundColor": "#0C4A6E"
+      },
+      "permissions": [
+        "RECORD_AUDIO"
+      ]
+    },
+    "plugins": [
+      "expo-asset",
+      "expo-av"
+    ]
+  }
+}

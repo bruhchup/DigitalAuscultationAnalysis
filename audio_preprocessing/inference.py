@@ -1,17 +1,14 @@
 """
 =============================================================================
-Inference Pipeline (Random Forest + MFCC)
+Inference Pipeline
 =============================================================================
 
-Loads the trained RF model + scaler + config and classifies a raw .wav file.
-Designed to be imported by the FastAPI web app or run standalone for testing.
+Supports two model backends:
+  - Random Forest + MFCC (original, model_type="sklearn")
+  - PyTorch CNN6 + Mel Spectrogram (SCL, model_type="pytorch")
 
-Pipeline:
-  1. Load full recording
-  2. Resample to 8kHz + bandpass filter (50-2000Hz) on FULL recording
-  3. Segment into 3s windows (or use ICBHI annotations if provided)
-  4. Extract MFCC features per segment
-  5. Classify each segment, aggregate results
+The load_classifier() factory reads preprocessing_config.json to determine
+which backend to use. Both return the same dict format from classify().
 
 Usage (standalone - test mode, picks random file from dataset):
   python inference.py
@@ -20,8 +17,8 @@ Usage (standalone - specific file):
   python inference.py --audio path/to/file.wav
 
 Usage (imported):
-  from inference import AudioClassifier
-  clf = AudioClassifier("models/best_model")
+  from inference import load_classifier
+  clf = load_classifier("models/scl_model")
   results = clf.classify("upload.wav")
 
 Author: Hayden Banks
@@ -298,6 +295,229 @@ class AudioClassifier:
         }
 
 
+class CNNClassifier:
+    """Wraps PyTorch CNN6/CNN10/CNN14 model loading, preprocessing, and prediction."""
+
+    def __init__(self, model_dir):
+        import torch
+        import torchaudio.transforms as T
+
+        model_dir = Path(model_dir)
+
+        config_path = model_dir / "preprocessing_config.json"
+        if not config_path.exists():
+            raise FileNotFoundError(f"Config not found: {config_path}")
+        with open(config_path) as f:
+            self.cfg = json.load(f)
+
+        self.class_names = self.cfg["CLASS_NAMES"]
+        self.target_sr = self.cfg["TARGET_SR"]
+        self.target_length = self.cfg["TARGET_LENGTH"]
+        self.device = "cuda" if torch.cuda.is_available() else "cpu"
+
+        # Load model architecture
+        from audio_preprocessing.scl.models import CNN6, CNN10, CNN14, LinearClassifier
+
+        backbone = self.cfg["backbone"]
+        num_classes = self.cfg["NUM_CLASSES"]
+        embed_only = self.cfg.get("embed_only", True)
+        method = self.cfg.get("method", "hybrid")
+
+        if backbone == 'cnn6':
+            self.encoder = CNN6(num_classes=num_classes, embed_only=embed_only,
+                                from_scratch=True, device=self.device)
+        elif backbone == 'cnn10':
+            self.encoder = CNN10(num_classes=num_classes, embed_only=embed_only,
+                                 from_scratch=True, device=self.device)
+        elif backbone == 'cnn14':
+            self.encoder = CNN14(num_classes=num_classes, embed_only=embed_only,
+                                 from_scratch=True, device=self.device)
+
+        # Load saved weights
+        state_path = model_dir / "model_state.pth"
+        if not state_path.exists():
+            raise FileNotFoundError(f"Model weights not found: {state_path}")
+
+        checkpoint = torch.load(state_path, map_location=self.device, weights_only=False)
+        self.encoder.load_state_dict(checkpoint["encoder"])
+        self.encoder.eval()
+
+        # For methods that have a separate classifier (scl, mscl, hybrid)
+        if "classifier" in checkpoint:
+            self.classifier = LinearClassifier(name=backbone, num_classes=num_classes, device=self.device)
+            self.classifier.load_state_dict(checkpoint["classifier"])
+            self.classifier.eval()
+            self._use_classifier = True
+        else:
+            self._use_classifier = False
+
+        # Build mel spectrogram transform
+        from audio_preprocessing.scl.utils import Normalize, Standardize
+
+        melspec = T.MelSpectrogram(
+            n_fft=self.cfg["N_FFT"], n_mels=self.cfg["N_MELS"],
+            win_length=self.cfg.get("WIN_LENGTH", self.cfg["N_FFT"]),
+            hop_length=self.cfg["HOP_LENGTH"],
+            f_min=self.cfg["FILTER_LOWCUT"], f_max=self.cfg["FILTER_HIGHCUT"],
+        ).to(self.device)
+
+        self.transform = torch.nn.Sequential(
+            melspec, Normalize(), Standardize(device=self.device)
+        ).to(self.device)
+
+        self._torch = torch
+        print(f"CNN Classifier loaded ({self.cfg.get('model_name', backbone)}) on {self.device}")
+
+    def _preprocess_full_recording(self, audio, sr):
+        if sr != self.target_sr:
+            audio = librosa.resample(audio, orig_sr=sr, target_sr=self.target_sr)
+        return audio
+
+    def _circular_pad(self, audio_np):
+        if len(audio_np) >= self.target_length:
+            return audio_np[:self.target_length]
+        repeats = int(np.ceil(self.target_length / len(audio_np)))
+        padded = np.tile(audio_np, repeats)[:self.target_length]
+        # Apply fade out at the end
+        fade_len = self.target_sr // 16
+        if fade_len > 0 and len(padded) > fade_len:
+            fade = np.linspace(1.0, 0.0, fade_len)
+            padded[-fade_len:] *= fade
+        return padded
+
+    def _segment_with_annotations(self, audio, annotation_path):
+        sr = self.target_sr
+        segments = []
+        with open(annotation_path) as f:
+            for line in f:
+                parts = line.strip().split()
+                if len(parts) < 2:
+                    continue
+                try:
+                    start, end = float(parts[0]), float(parts[1])
+                except ValueError:
+                    continue
+                s, e = int(start * sr), int(end * sr)
+                if e > s and e <= len(audio):
+                    segments.append({"audio": audio[s:e], "start": start, "end": end})
+        return segments
+
+    def _segment_sliding_window(self, audio):
+        sr = self.target_sr
+        duration = len(audio) / sr
+        window_samples = self.target_length  # 8s
+        hop_samples = window_samples // 2     # 4s hop
+
+        segments = []
+        if len(audio) <= window_samples:
+            segments.append({"audio": audio, "start": 0.0, "end": duration})
+        else:
+            pos = 0
+            while pos + window_samples <= len(audio):
+                segments.append({
+                    "audio": audio[pos:pos + window_samples],
+                    "start": pos / sr,
+                    "end": (pos + window_samples) / sr,
+                })
+                pos += hop_samples
+            if pos < len(audio) and (len(audio) - pos) > int(0.5 * sr):
+                segments.append({
+                    "audio": audio[pos:],
+                    "start": pos / sr,
+                    "end": duration,
+                })
+        return segments
+
+    def classify(self, audio_path, annotation_path=None):
+        torch = self._torch
+
+        audio_raw, sr_original = librosa.load(audio_path, sr=None)
+        audio = self._preprocess_full_recording(audio_raw, sr_original)
+        duration = len(audio) / self.target_sr
+
+        if annotation_path and Path(annotation_path).exists():
+            segments = self._segment_with_annotations(audio, annotation_path)
+        else:
+            segments = self._segment_sliding_window(audio)
+
+        if not segments:
+            return {
+                "overall_label": "Unknown",
+                "overall_confidence": 0.0,
+                "cycles": [],
+                "duration_sec": round(duration, 2),
+                "total_cycles": 0,
+                "abnormal_cycles": 0,
+                "normal_cycles": 0,
+                "error": "No valid audio segments found",
+            }
+
+        cycle_results = []
+
+        with torch.no_grad():
+            for seg in segments:
+                padded = self._circular_pad(seg["audio"])
+                # Shape: (1, 1, target_length) - batch, channel, time
+                tensor = torch.tensor(padded, dtype=torch.float32).unsqueeze(0).unsqueeze(0).to(self.device)
+
+                mel = self.transform(tensor)
+
+                if self._use_classifier:
+                    features = self.encoder(mel)
+                    logits = self.classifier(features)
+                else:
+                    logits = self.encoder(mel)
+
+                probs = torch.nn.functional.softmax(logits, dim=1).cpu().numpy()[0]
+                pred_idx = int(np.argmax(probs))
+
+                cycle_results.append({
+                    "start": round(seg["start"], 3),
+                    "end": round(seg["end"], 3),
+                    "label": self.class_names[pred_idx],
+                    "confidence": round(float(probs[pred_idx]), 4),
+                    "probabilities": {
+                        name: round(float(probs[j]), 4)
+                        for j, name in enumerate(self.class_names)
+                    },
+                })
+
+        # Aggregate: confidence-weighted majority vote
+        label_scores = {name: 0.0 for name in self.class_names}
+        for cr in cycle_results:
+            label_scores[cr["label"]] += cr["confidence"]
+
+        overall_label = max(label_scores, key=label_scores.get)
+        total = sum(label_scores.values())
+        overall_conf = label_scores[overall_label] / total if total > 0 else 0.0
+
+        abnormal_count = sum(1 for c in cycle_results if c["label"] != "Normal")
+
+        return {
+            "overall_label": overall_label,
+            "overall_confidence": round(overall_conf, 4),
+            "cycles": cycle_results,
+            "duration_sec": round(duration, 2),
+            "total_cycles": len(cycle_results),
+            "abnormal_cycles": abnormal_count,
+            "normal_cycles": len(cycle_results) - abnormal_count,
+            "error": None,
+        }
+
+
+def load_classifier(model_dir):
+    """Factory: load the appropriate classifier based on config's model_type."""
+    model_dir = Path(model_dir)
+    config_path = model_dir / "preprocessing_config.json"
+    with open(config_path) as f:
+        cfg = json.load(f)
+
+    if cfg.get("model_type") == "pytorch":
+        return CNNClassifier(model_dir)
+    else:
+        return AudioClassifier(model_dir)
+
+
 # ============================================================================
 # CLI
 # ============================================================================
@@ -327,7 +547,7 @@ def main():
         args.audio = random.choice(wav_files)
         print(f"[TEST MODE] Randomly selected: {Path(args.audio).name}")
 
-    clf = AudioClassifier(args.model_dir)
+    clf = load_classifier(args.model_dir)
     results = clf.classify(args.audio, args.annotations)
 
     print("\n" + "=" * 60)
@@ -341,17 +561,23 @@ def main():
     print(f"Normal:     {results['normal_cycles']}")
     print(f"Abnormal:   {results['abnormal_cycles']}")
 
+    # Build header dynamically based on class names
+    class_names = clf.class_names
+    header_parts = [f"{'Start':>6s}", f"{'End':>6s}", f"{'Label':>8s}", f"{'Conf':>6s}"]
+    header_parts.extend(f"{name:>8s}" for name in class_names)
     print(f"\nPer-Segment Breakdown:")
-    print(f"  {'Start':>6s}  {'End':>6s}  {'Label':>8s}  {'Conf':>6s}  "
-          f"{'Normal':>7s}  {'Crackle':>8s}  {'Wheeze':>7s}")
-    print(f"  {'-' * 58}")
+    print(f"  {'  '.join(header_parts)}")
+    print(f"  {'-' * (14 + 10 * len(class_names) + 16)}")
     for c in results["cycles"]:
         p = c["probabilities"]
-        print(
-            f"  {c['start']:6.2f}  {c['end']:6.2f}  {c['label']:>8s}  "
-            f"{c['confidence']:5.1%}  {p['Normal']:6.1%}  "
-            f"{p['Crackle']:7.1%}  {p['Wheeze']:6.1%}"
-        )
+        parts = [
+            f"  {c['start']:6.2f}",
+            f"{c['end']:6.2f}",
+            f"{c['label']:>8s}",
+            f"{c['confidence']:5.1%}",
+        ]
+        parts.extend(f"{p.get(name, 0.0):7.1%}" for name in class_names)
+        print("  ".join(parts))
 
 
 if __name__ == "__main__":
