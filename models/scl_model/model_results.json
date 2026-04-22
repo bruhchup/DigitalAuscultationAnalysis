@@ -1,0 +1,10 @@
+{
+  "method": "hybrid",
+  "backbone": "cnn6",
+  "best_icbhi_score": 0.5922855673418457,
+  "best_sensitivity": 0.41480206540447506,
+  "best_specificity": 0.7697690692792163,
+  "epochs": 400,
+  "batch_size": 128,
+  "learning_rate": 0.0001
+}

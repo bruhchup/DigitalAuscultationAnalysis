@@ -1,0 +1,23 @@
+{
+  "model_type": "pytorch",
+  "model_name": "cnn6_hybrid",
+  "backbone": "cnn6",
+  "method": "hybrid",
+  "TARGET_SR": 16000,
+  "TARGET_DURATION": 8,
+  "TARGET_LENGTH": 128000,
+  "FILTER_LOWCUT": 50,
+  "FILTER_HIGHCUT": 2000,
+  "N_MELS": 64,
+  "N_FFT": 1024,
+  "HOP_LENGTH": 512,
+  "WIN_LENGTH": 1024,
+  "CLASS_NAMES": [
+    "Normal",
+    "Crackle",
+    "Wheeze",
+    "Both"
+  ],
+  "NUM_CLASSES": 4,
+  "embed_only": true
+}
