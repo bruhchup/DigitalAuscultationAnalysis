@@ -8,13 +8,28 @@ import {
   Alert,
   ScrollView,
 } from "react-native";
-import { Audio } from "expo-av";
+import { useAudioRecorder, setAudioModeAsync, IOSOutputFormat, AudioQuality } from "expo-audio";
 import * as DocumentPicker from "expo-document-picker";
 import { classifyAudio } from "../services/api";
 
 export default function HomeScreen({ navigation }) {
-  const [recording, setRecording] = useState(null);
-  const [isRecording, setIsRecording] = useState(false);
+  const recorder = useAudioRecorder({
+    extension: ".wav",
+    sampleRate: 16000,
+    numberOfChannels: 1,
+    bitRate: 256000,
+    android: {
+      outputFormat: "default",
+      audioEncoder: "default",
+    },
+    ios: {
+      outputFormat: IOSOutputFormat.LINEARPCM,
+      audioQuality: AudioQuality.MAX,
+      linearPCMBitDepth: 16,
+      linearPCMIsBigEndian: false,
+      linearPCMIsFloat: false,
+    },
+  });
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [recordingDuration, setRecordingDuration] = useState(0);
   const timerRef = useRef(null);
@@ -23,23 +38,13 @@ export default function HomeScreen({ navigation }) {
 
   async function startRecording() {
     try {
-      const permission = await Audio.requestPermissionsAsync();
-      if (permission.status !== "granted") {
-        Alert.alert("Permission required", "Microphone access is needed to record lung sounds.");
-        return;
-      }
-
-      await Audio.setAudioModeAsync({
-        allowsRecordingIOS: true,
-        playsInSilentModeIOS: true,
+      await setAudioModeAsync({
+        allowsRecording: true,
+        playsInSilentMode: true,
       });
 
-      const { recording: newRecording } = await Audio.Recording.createAsync(
-        Audio.RecordingOptionsPresets.HIGH_QUALITY
-      );
-
-      setRecording(newRecording);
-      setIsRecording(true);
+      await recorder.prepareToRecordAsync();
+      recorder.record();
       setRecordingDuration(0);
 
       timerRef.current = setInterval(() => {
@@ -53,11 +58,9 @@ export default function HomeScreen({ navigation }) {
   async function stopRecording() {
     try {
       clearInterval(timerRef.current);
-      setIsRecording(false);
 
-      await recording.stopAndUnloadAsync();
-      const uri = recording.getURI();
-      setRecording(null);
+      await recorder.stop();
+      const uri = recorder.uri;
 
       if (uri) {
         await analyzeFile(uri, "recording.wav");
@@ -126,7 +129,7 @@ export default function HomeScreen({ navigation }) {
           Place a digital stethoscope or device microphone on the patient's chest and record.
         </Text>
 
-        {isRecording && (
+        {recorder.isRecording && (
           <View style={styles.timerContainer}>
             <View style={styles.recordingDot} />
             <Text style={styles.timerText}>{formatTime(recordingDuration)}</Text>
@@ -134,14 +137,14 @@ export default function HomeScreen({ navigation }) {
         )}
 
         <TouchableOpacity
-          style={[styles.recordButton, isRecording && styles.recordButtonActive]}
-          onPress={isRecording ? stopRecording : startRecording}
+          style={[styles.recordButton, recorder.isRecording && styles.recordButtonActive]}
+          onPress={recorder.isRecording ? stopRecording : startRecording}
           disabled={isAnalyzing}
         >
-          <View style={[styles.recordInner, isRecording && styles.recordInnerActive]} />
+          <View style={[styles.recordInner, recorder.isRecording && styles.recordInnerActive]} />
         </TouchableOpacity>
         <Text style={styles.recordHint}>
-          {isRecording ? "Tap to stop" : "Tap to record"}
+          {recorder.isRecording ? "Tap to stop" : "Tap to record"}
         </Text>
       </View>
 
@@ -157,7 +160,7 @@ export default function HomeScreen({ navigation }) {
         <TouchableOpacity
           style={styles.uploadButton}
           onPress={pickFile}
-          disabled={isAnalyzing || isRecording}
+          disabled={isAnalyzing || recorder.isRecording}
         >
           <Text style={styles.uploadIcon}>+</Text>
           <Text style={styles.uploadText}>Upload .wav File</Text>

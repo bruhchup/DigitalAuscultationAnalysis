@@ -7,7 +7,7 @@
  *   - Physical device:  http://<your-local-ip>:5000
  */
 
-const API_BASE = "http://10.0.2.2:5000"; // change for your setup
+const API_BASE = "http://192.168.0.14:5000"; // your local machine
 
 export async function checkHealth() {
   const res = await fetch(`${API_BASE}/health`);

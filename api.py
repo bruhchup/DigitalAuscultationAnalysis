@@ -24,6 +24,8 @@ import argparse
 import tempfile
 from pathlib import Path
 
+import soundfile as sf
+import librosa
 from flask import Flask, request, jsonify
 from flask_cors import CORS
 
@@ -64,13 +66,21 @@ def classify():
         return jsonify({"error": "No audio file provided. Send a .wav file as 'audio'."}), 400
 
     audio_file = request.files["audio"]
-    if not audio_file.filename.lower().endswith(".wav"):
-        return jsonify({"error": "Only .wav files are supported."}), 400
+    filename = audio_file.filename.lower()
+    ext = os.path.splitext(filename)[1] or ".wav"
 
-    # Save to temp file
-    with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as tmp:
+    # Save uploaded file to temp
+    with tempfile.NamedTemporaryFile(suffix=ext, delete=False) as tmp:
         audio_file.save(tmp.name)
         tmp_path = tmp.name
+
+    # Convert non-wav formats to wav so the classifier can process them
+    if ext != ".wav":
+        wav_path = tmp_path.rsplit(".", 1)[0] + ".wav"
+        audio, sr = librosa.load(tmp_path, sr=None)
+        sf.write(wav_path, audio, sr)
+        os.unlink(tmp_path)
+        tmp_path = wav_path
 
     # Optional annotation file
     annotation_path = None
